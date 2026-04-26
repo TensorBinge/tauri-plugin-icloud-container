@@ -20,4 +20,11 @@ final class ICloudContainerTests: XCTestCase {
 
         XCTAssertNil(resolver.getCachedContainerUrl(identifier: "iCloud.com.example.app"))
     }
+
+    func testRelativePathStringUsesCanonicalPathComponents() {
+        let rootUrl = URL(fileURLWithPath: "/private/var/mobile/Library/Mobile Documents/iCloud~com~tensorbinge~markscope/Documents")
+        let itemUrl = URL(fileURLWithPath: "/var/mobile/Library/Mobile Documents/iCloud~com~tensorbinge~markscope/Documents/DndUntitled")
+
+        XCTAssertEqual(relativePathString(from: itemUrl, rootUrl: rootUrl), "DndUntitled")
+    }
 }

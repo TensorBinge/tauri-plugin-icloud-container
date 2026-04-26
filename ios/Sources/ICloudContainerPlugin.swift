@@ -95,9 +95,7 @@ private final class DirectoryWatcher {
     }
 
     private func relativePath(from url: URL) -> String {
-        let rootPath = rootUrl.path
-        let itemPath = url.path
-        return String(itemPath.dropFirst(rootPath.count + 1))
+        return relativePathString(from: url, rootUrl: rootUrl) ?? url.lastPathComponent
     }
 }
 
@@ -165,13 +163,31 @@ private final class FileWatcher: NSObject, NSFilePresenter {
     }
 
     private func relativePath(from url: URL) -> String {
-        let rootPath = rootUrl.path
-        let itemPath = url.standardizedFileURL.path
-        if itemPath == rootPath {
+        if url.resolvingSymlinksInPath().standardizedFileURL == rootUrl.resolvingSymlinksInPath().standardizedFileURL {
             return "."
         }
-        return String(itemPath.dropFirst(rootPath.count + 1))
+
+        return relativePathString(from: url, rootUrl: rootUrl) ?? watchedPath
     }
+}
+
+func relativePathString(from url: URL, rootUrl: URL) -> String? {
+    let canonicalRoot = rootUrl.resolvingSymlinksInPath().standardizedFileURL
+    let canonicalItem = url.resolvingSymlinksInPath().standardizedFileURL
+
+    if canonicalItem == canonicalRoot {
+        return "."
+    }
+
+    let rootComponents = canonicalRoot.pathComponents
+    let itemComponents = canonicalItem.pathComponents
+
+    guard itemComponents.count >= rootComponents.count,
+          Array(itemComponents.prefix(rootComponents.count)) == rootComponents else {
+        return nil
+    }
+
+    return itemComponents.dropFirst(rootComponents.count).joined(separator: "/")
 }
 
 /// Main iCloud Container Plugin class
@@ -1218,14 +1234,7 @@ public class ICloudContainerPlugin {
     }
 
     private func relativePath(from url: URL, rootUrl: URL) -> String {
-        let rootPath = rootUrl.path
-        let itemPath = url.path
-
-        if itemPath == rootPath {
-            return "."
-        }
-
-        return String(itemPath.dropFirst(rootPath.count + 1))
+        return relativePathString(from: url, rootUrl: rootUrl) ?? url.lastPathComponent
     }
 
     private func isWithinRoot(_ url: URL, rootUrl: URL) -> Bool {
