@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-is-ubiquitous"
+description = "Enables the is_ubiquitous command without any pre-configured scope."
+commands.allow = ["is_ubiquitous"]
+
+[[permission]]
+identifier = "deny-is-ubiquitous"
+description = "Denies the is_ubiquitous command without any pre-configured scope."
+commands.deny = ["is_ubiquitous"]

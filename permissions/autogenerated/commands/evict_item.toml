@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-evict-item"
+description = "Enables the evict_item command without any pre-configured scope."
+commands.allow = ["evict_item"]
+
+[[permission]]
+identifier = "deny-evict-item"
+description = "Denies the evict_item command without any pre-configured scope."
+commands.deny = ["evict_item"]

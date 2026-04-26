@@ -1,0 +1,22 @@
+{
+  "name": "tauri-plugin-icloud-container-api",
+  "version": "0.1.0-beta.1",
+  "description": "Typed guest JS API for tauri-plugin-icloud-container",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "guest-js",
+    "README.md"
+  ],
+  "main": "./guest-js/index.ts",
+  "types": "./guest-js/index.ts",
+  "exports": {
+    ".": "./guest-js/index.ts"
+  },
+  "scripts": {
+    "test:guest-api": "node ./tests/guest_api_contract.mjs"
+  },
+  "peerDependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  }
+}

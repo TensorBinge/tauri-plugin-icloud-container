@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-item-exists"
+description = "Enables the item_exists command without any pre-configured scope."
+commands.allow = ["item_exists"]
+
+[[permission]]
+identifier = "deny-item-exists"
+description = "Denies the item_exists command without any pre-configured scope."
+commands.deny = ["item_exists"]
