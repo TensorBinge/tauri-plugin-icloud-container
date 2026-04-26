@@ -60,7 +60,10 @@ impl<R: Runtime> IcloudContainer<R> {
             .map_err(normalize_mobile_error)
     }
 
-    pub async fn get_container_url(&self, identifier: Option<String>) -> Result<String, PluginError> {
+    pub async fn get_container_url(
+        &self,
+        identifier: Option<String>,
+    ) -> Result<String, PluginError> {
         self.handle
             .run_mobile_plugin_async(
                 "getContainerUrl",
@@ -207,7 +210,11 @@ impl<R: Runtime> IcloudContainer<R> {
             .map_err(normalize_mobile_error)
     }
 
-    pub async fn delete_item(&self, path: String, identifier: Option<String>) -> Result<(), PluginError> {
+    pub async fn delete_item(
+        &self,
+        path: String,
+        identifier: Option<String>,
+    ) -> Result<(), PluginError> {
         self.handle
             .run_mobile_plugin_async(
                 "deleteItem",
@@ -283,7 +290,11 @@ impl<R: Runtime> IcloudContainer<R> {
             .map_err(normalize_mobile_error)
     }
 
-    pub async fn start_download(&self, path: String, identifier: Option<String>) -> Result<(), PluginError> {
+    pub async fn start_download(
+        &self,
+        path: String,
+        identifier: Option<String>,
+    ) -> Result<(), PluginError> {
         self.handle
             .run_mobile_plugin_async(
                 "startDownload",
@@ -293,7 +304,11 @@ impl<R: Runtime> IcloudContainer<R> {
             .map_err(normalize_mobile_error)
     }
 
-    pub async fn evict_item(&self, path: String, identifier: Option<String>) -> Result<(), PluginError> {
+    pub async fn evict_item(
+        &self,
+        path: String,
+        identifier: Option<String>,
+    ) -> Result<(), PluginError> {
         self.handle
             .run_mobile_plugin_async(
                 "evictItem",
@@ -303,7 +318,11 @@ impl<R: Runtime> IcloudContainer<R> {
             .map_err(normalize_mobile_error)
     }
 
-    pub async fn is_ubiquitous(&self, path: String, identifier: Option<String>) -> Result<bool, PluginError> {
+    pub async fn is_ubiquitous(
+        &self,
+        path: String,
+        identifier: Option<String>,
+    ) -> Result<bool, PluginError> {
         self.handle
             .run_mobile_plugin_async(
                 "isUbiquitous",
@@ -339,7 +358,11 @@ impl<R: Runtime> IcloudContainer<R> {
             .map_err(normalize_mobile_error)
     }
 
-    pub async fn watch_file(&self, path: String, identifier: Option<String>) -> Result<String, PluginError> {
+    pub async fn watch_file(
+        &self,
+        path: String,
+        identifier: Option<String>,
+    ) -> Result<String, PluginError> {
         self.handle
             .run_mobile_plugin_async(
                 "watchFile",
@@ -388,7 +411,9 @@ fn file_protection_to_wire(value: FileProtectionType) -> &'static str {
     }
 }
 
-fn normalize_mobile_error(message: String) -> PluginError {
+fn normalize_mobile_error<E: ToString>(error: E) -> PluginError {
+    let message = error.to_string();
+
     let Some(rest) = message.strip_prefix("ICLOUD_CONTAINER_ERROR:") else {
         return PluginError::IoError {
             detail: Some(message),
@@ -421,7 +446,8 @@ mod tests {
 
     #[test]
     fn normalize_mobile_error_maps_known_codes() {
-        let err = normalize_mobile_error("ICLOUD_CONTAINER_ERROR:NOT_FOUND:file missing".to_string());
+        let err =
+            normalize_mobile_error("ICLOUD_CONTAINER_ERROR:NOT_FOUND:file missing".to_string());
         match err {
             PluginError::NotFound { detail } => {
                 assert_eq!(detail.as_deref(), Some("file missing"));
@@ -450,7 +476,10 @@ mod tests {
 
     #[test]
     fn file_protection_to_wire_matches_expected_strings() {
-        assert_eq!(file_protection_to_wire(FileProtectionType::Complete), "complete");
+        assert_eq!(
+            file_protection_to_wire(FileProtectionType::Complete),
+            "complete"
+        );
         assert_eq!(
             file_protection_to_wire(FileProtectionType::CompleteUnlessOpen),
             "completeUnlessOpen"
@@ -464,7 +493,10 @@ mod tests {
 
     #[test]
     fn normalize_identifier_trims_and_discards_empty_values() {
-        assert_eq!(normalize_identifier(Some("  iCloud.com.example.app  ".to_string())), Some("iCloud.com.example.app".to_string()));
+        assert_eq!(
+            normalize_identifier(Some("  iCloud.com.example.app  ".to_string())),
+            Some("iCloud.com.example.app".to_string())
+        );
         assert_eq!(normalize_identifier(Some("   ".to_string())), None);
         assert_eq!(normalize_identifier(None), None);
     }

@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use tauri_plugin_icloud_container::commands::{
     resolve_create_directory_options, resolve_list_directory_options, validate_relative_path,
 };
-use tauri_plugin_icloud_container::{CreateDirectoryOptions, FileProtectionType, ListDirectoryOptions, PluginError};
+use tauri_plugin_icloud_container::{
+    CreateDirectoryOptions, FileProtectionType, ListDirectoryOptions, PluginError,
+};
 
 #[test]
 fn create_directory_defaults_match_spec() {
@@ -49,12 +51,14 @@ fn list_directory_explicit_options_are_preserved() {
 #[test]
 fn move_and_copy_paths_reuse_relative_path_sandboxing() {
     let valid_source = validate_relative_path("workspace/source.md".to_string()).unwrap();
-    let valid_destination = validate_relative_path("workspace/archive/source.md".to_string()).unwrap();
+    let valid_destination =
+        validate_relative_path("workspace/archive/source.md".to_string()).unwrap();
 
     assert_eq!(valid_source, "workspace/source.md");
     assert_eq!(valid_destination, "workspace/archive/source.md");
 
-    let err = validate_relative_path("../escape.txt".to_string()).expect_err("must reject traversal");
+    let err =
+        validate_relative_path("../escape.txt".to_string()).expect_err("must reject traversal");
     match err {
         PluginError::PathOutsideContainer { .. } => {}
         _ => panic!("expected path_outside_container"),
@@ -64,8 +68,9 @@ fn move_and_copy_paths_reuse_relative_path_sandboxing() {
 #[test]
 fn swift_plugin_exposes_directory_and_sync_methods() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let swift_plugin = fs::read_to_string(root.join("ios/Sources/ICloudContainerTauriPlugin.swift"))
-        .expect("read ICloudContainerTauriPlugin.swift");
+    let swift_plugin =
+        fs::read_to_string(root.join("ios/Sources/ICloudContainerTauriPlugin.swift"))
+            .expect("read ICloudContainerTauriPlugin.swift");
 
     for method in [
         "@objc public func createDirectory",
@@ -79,7 +84,10 @@ fn swift_plugin_exposes_directory_and_sync_methods() {
         "@objc public func evictItem",
         "@objc public func isUbiquitous",
     ] {
-        assert!(swift_plugin.contains(method), "missing Swift method: {method}");
+        assert!(
+            swift_plugin.contains(method),
+            "missing Swift method: {method}"
+        );
     }
 }
 
@@ -88,8 +96,8 @@ fn swift_service_uses_native_trash_and_non_destructive_transfer_semantics() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let service = fs::read_to_string(root.join("ios/Sources/ICloudContainerPlugin.swift"))
         .expect("read ICloudContainerPlugin.swift");
-    let package = fs::read_to_string(root.join("ios/Package.swift"))
-        .expect("read ios/Package.swift");
+    let package =
+        fs::read_to_string(root.join("ios/Package.swift")).expect("read ios/Package.swift");
 
     assert!(service.contains("FileManager.default.trashItem"));
     assert!(!service.contains("appendingPathComponent(\".Trash\""));

@@ -35,8 +35,7 @@ fn test_container_status_serialization_available() {
     assert!(json.contains("\"available\":true"));
 
     // Deserialize back
-    let deserialized: ContainerStatus =
-        serde_json::from_str(&json).expect("deserialize");
+    let deserialized: ContainerStatus = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(deserialized.available, status.available);
     assert_eq!(deserialized.reason, status.reason);
 }
@@ -48,13 +47,9 @@ fn test_container_status_serialization_unavailable() {
         reason: Some("iCloud disabled".to_string()),
     };
     let json = serde_json::to_string(&status).expect("serialize");
-    let deserialized: ContainerStatus =
-        serde_json::from_str(&json).expect("deserialize");
+    let deserialized: ContainerStatus = serde_json::from_str(&json).expect("deserialize");
     assert!(!deserialized.available);
-    assert_eq!(
-        deserialized.reason,
-        Some("iCloud disabled".to_string())
-    );
+    assert_eq!(deserialized.reason, Some("iCloud disabled".to_string()));
 }
 
 // ============================================================================
@@ -78,7 +73,10 @@ fn test_container_url_is_absolute_path() {
 
     for path in paths {
         assert!(path.starts_with("/"), "container URL must be absolute path");
-        assert!(!path.ends_with("/"), "container URL should not have trailing slash");
+        assert!(
+            !path.ends_with("/"),
+            "container URL should not have trailing slash"
+        );
     }
 }
 

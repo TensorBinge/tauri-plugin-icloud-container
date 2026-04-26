@@ -7,7 +7,7 @@ use crate::{
     },
 };
 use std::path::{Component, Path};
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
 #[cfg(mobile)]
 use crate::IcloudContainer;
@@ -57,7 +57,10 @@ pub fn validate_relative_path(path: String) -> Result<String, PluginError> {
     }
 
     for component in raw_path.components() {
-        if matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_)) {
+        if matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        ) {
             return Err(PluginError::PathOutsideContainer {
                 detail: Some("path cannot traverse outside container root".to_string()),
             });
@@ -235,7 +238,14 @@ pub async fn write_file<R: Runtime>(
     {
         let bridge = app.state::<IcloudContainer<R>>();
         bridge
-            .write_file(valid_path, content, id, encoding, overwrite, file_protection)
+            .write_file(
+                valid_path,
+                content,
+                id,
+                encoding,
+                overwrite,
+                file_protection,
+            )
             .await
     }
 
@@ -343,10 +353,13 @@ mod tests {
 
     #[test]
     fn resolve_optional_identifier_rejects_empty_identifier_override() {
-        let err = resolve_optional_identifier(Some("   ".to_string())).expect_err("must reject empty override");
+        let err = resolve_optional_identifier(Some("   ".to_string()))
+            .expect_err("must reject empty override");
         match err {
             PluginError::InvalidArgument { detail } => {
-                assert!(detail.unwrap_or_default().contains("identifier is required"));
+                assert!(detail
+                    .unwrap_or_default()
+                    .contains("identifier is required"));
             }
             _ => panic!("expected invalid_argument"),
         }
@@ -373,13 +386,24 @@ pub async fn create_directory<R: Runtime>(
     {
         let bridge = app.state::<IcloudContainer<R>>();
         bridge
-            .create_directory(valid_path, id, with_intermediate_directories, file_protection)
+            .create_directory(
+                valid_path,
+                id,
+                with_intermediate_directories,
+                file_protection,
+            )
             .await
     }
 
     #[cfg(not(mobile))]
     {
-        let _ = (app, valid_path, id, with_intermediate_directories, file_protection);
+        let _ = (
+            app,
+            valid_path,
+            id,
+            with_intermediate_directories,
+            file_protection,
+        );
         unsupported()
     }
 }

@@ -5,8 +5,8 @@ use std::path::PathBuf;
 fn plugin_metadata_includes_group2_commands_and_default_acl() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let build_rs = fs::read_to_string(root.join("build.rs")).expect("read build.rs");
-    let default_permissions =
-        fs::read_to_string(root.join("permissions/default.toml")).expect("read permissions/default.toml");
+    let default_permissions = fs::read_to_string(root.join("permissions/default.toml"))
+        .expect("read permissions/default.toml");
 
     assert!(build_rs.contains("read_file"));
     assert!(build_rs.contains("write_file"));
@@ -24,8 +24,9 @@ fn plugin_metadata_includes_group2_commands_and_default_acl() {
 #[test]
 fn swift_tauri_plugin_exposes_expected_group2_methods() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let swift_plugin = fs::read_to_string(root.join("ios/Sources/ICloudContainerTauriPlugin.swift"))
-        .expect("read ICloudContainerTauriPlugin.swift");
+    let swift_plugin =
+        fs::read_to_string(root.join("ios/Sources/ICloudContainerTauriPlugin.swift"))
+            .expect("read ICloudContainerTauriPlugin.swift");
 
     assert!(swift_plugin.contains("@objc public func readFile"));
     assert!(swift_plugin.contains("@objc public func writeFile"));
@@ -37,8 +38,7 @@ fn swift_tauri_plugin_exposes_expected_group2_methods() {
 #[test]
 fn mobile_bridge_threads_identifier_overrides_to_container_backed_calls() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let mobile_bridge = fs::read_to_string(root.join("src/mobile.rs"))
-        .expect("read src/mobile.rs");
+    let mobile_bridge = fs::read_to_string(root.join("src/mobile.rs")).expect("read src/mobile.rs");
 
     for method in [
         "pub async fn read_file",
@@ -59,7 +59,10 @@ fn mobile_bridge_threads_identifier_overrides_to_container_backed_calls() {
         "pub async fn watch_directory",
         "pub async fn watch_file",
     ] {
-        assert!(mobile_bridge.contains(method), "missing bridge method: {method}");
+        assert!(
+            mobile_bridge.contains(method),
+            "missing bridge method: {method}"
+        );
     }
 
     assert!(mobile_bridge.contains("self.resolve_identifier(identifier)"));
@@ -68,8 +71,9 @@ fn mobile_bridge_threads_identifier_overrides_to_container_backed_calls() {
 #[test]
 fn swift_tauri_plugin_exports_init_symbol() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let swift_plugin = fs::read_to_string(root.join("ios/Sources/ICloudContainerTauriPlugin.swift"))
-        .expect("read ICloudContainerTauriPlugin.swift");
+    let swift_plugin =
+        fs::read_to_string(root.join("ios/Sources/ICloudContainerTauriPlugin.swift"))
+            .expect("read ICloudContainerTauriPlugin.swift");
 
     assert!(swift_plugin.contains("@_cdecl(\"init_plugin_icloud_container\")"));
 }

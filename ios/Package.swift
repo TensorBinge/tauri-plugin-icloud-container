@@ -10,16 +10,22 @@ let package = Package(
     products: [
         .library(
             name: "tauri-plugin-icloud-container",
+            type: .static,
             targets: ["ICloudContainer"]
         ),
     ],
-    dependencies: [],
+    dependencies: [
+        .package(name: "Tauri", path: "../.tauri/tauri-api")
+    ],
     targets: [
         .target(
             name: "ICloudContainer",
-            dependencies: [],
+            dependencies: [
+                .product(name: "Tauri", package: "Tauri")
+            ],
             path: "Sources",
             sources: [
+                "ICloudContainerDTOs.swift",
                 "ICloudContainerPlugin.swift",
                 "ICloudContainerResolver.swift",
                 "ICloudContainerTauriPlugin.swift",

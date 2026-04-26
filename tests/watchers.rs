@@ -2,8 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use tauri_plugin_icloud_container::{
-    commands::validate_relative_path, DirectoryWatchEvent, FileWatchEvent,
-    DIRECTORY_CHANGED_EVENT, FILE_CHANGED_EVENT,
+    commands::validate_relative_path, DirectoryWatchEvent, FileWatchEvent, DIRECTORY_CHANGED_EVENT,
+    FILE_CHANGED_EVENT,
 };
 
 #[test]
@@ -50,8 +50,9 @@ fn watcher_paths_reuse_relative_path_sandboxing() {
 #[test]
 fn swift_plugin_exposes_watcher_commands_and_native_primitives() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let tauri_plugin = fs::read_to_string(root.join("ios/Sources/ICloudContainerTauriPlugin.swift"))
-        .expect("read ICloudContainerTauriPlugin.swift");
+    let tauri_plugin =
+        fs::read_to_string(root.join("ios/Sources/ICloudContainerTauriPlugin.swift"))
+            .expect("read ICloudContainerTauriPlugin.swift");
     let service = fs::read_to_string(root.join("ios/Sources/ICloudContainerPlugin.swift"))
         .expect("read ICloudContainerPlugin.swift");
 
@@ -61,7 +62,10 @@ fn swift_plugin_exposes_watcher_commands_and_native_primitives() {
         "@objc public func watchFile",
         "@objc public func unwatchFile",
     ] {
-        assert!(tauri_plugin.contains(method), "missing watcher command: {method}");
+        assert!(
+            tauri_plugin.contains(method),
+            "missing watcher command: {method}"
+        );
     }
 
     assert!(tauri_plugin.contains("trigger(directoryChangedEventName"));

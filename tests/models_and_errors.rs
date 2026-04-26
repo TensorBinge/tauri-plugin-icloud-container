@@ -252,57 +252,27 @@ fn test_list_directory_options_serialization() {
 fn test_error_codes_are_stable() {
     let errors = vec![
         (
-            PluginError::ContainerUnavailable {
-                detail: None,
-            },
+            PluginError::ContainerUnavailable { detail: None },
             "container_unavailable",
         ),
+        (PluginError::NotSignedIn { detail: None }, "not_signed_in"),
         (
-            PluginError::NotSignedIn {
-                detail: None,
-            },
-            "not_signed_in",
-        ),
-        (
-            PluginError::PermissionDenied {
-                detail: None,
-            },
+            PluginError::PermissionDenied { detail: None },
             "permission_denied",
         ),
         (
-            PluginError::PathOutsideContainer {
-                detail: None,
-            },
+            PluginError::PathOutsideContainer { detail: None },
             "path_outside_container",
         ),
+        (PluginError::NotFound { detail: None }, "not_found"),
         (
-            PluginError::NotFound {
-                detail: None,
-            },
-            "not_found",
-        ),
-        (
-            PluginError::AlreadyExists {
-                detail: None,
-            },
+            PluginError::AlreadyExists { detail: None },
             "already_exists",
         ),
+        (PluginError::IoError { detail: None }, "io_error"),
+        (PluginError::SyncError { detail: None }, "sync_error"),
         (
-            PluginError::IoError {
-                detail: None,
-            },
-            "io_error",
-        ),
-        (
-            PluginError::SyncError {
-                detail: None,
-            },
-            "sync_error",
-        ),
-        (
-            PluginError::InvalidArgument {
-                detail: None,
-            },
+            PluginError::InvalidArgument { detail: None },
             "invalid_argument",
         ),
     ];

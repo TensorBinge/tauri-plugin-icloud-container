@@ -36,7 +36,8 @@ fn test_validate_relative_path_rejects_absolute_path() {
 
 #[test]
 fn test_validate_relative_path_rejects_parent_traversal() {
-    let err = validate_relative_path("../secret.txt".to_string()).expect_err("must reject traversal");
+    let err =
+        validate_relative_path("../secret.txt".to_string()).expect_err("must reject traversal");
     match err {
         PluginError::PathOutsideContainer { detail } => {
             assert!(detail.unwrap_or_default().contains("traverse"));
