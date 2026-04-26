@@ -78,34 +78,36 @@ import {
   writeFile,
   watchDirectory,
   onDirectoryChanged,
-} from 'tauri-plugin-icloud-container-api'
+} from "tauri-plugin-icloud-container-api";
 
-const status = await getContainerStatus()
+const status = await getContainerStatus();
 if (!status.available) {
-  throw new Error(status.reason ?? 'iCloud container unavailable')
+  throw new Error(status.reason ?? "iCloud container unavailable");
 }
 
-await writeFile('notes/example.txt', 'hello iCloud')
-const file = await readFile('notes/example.txt', { encoding: 'utf8' })
+await writeFile("notes/example.txt", "hello iCloud");
+const file = await readFile("notes/example.txt", { encoding: "utf8" });
 
-const watchId = await watchDirectory('notes', true)
+const watchId = await watchDirectory("notes", true);
 const unlisten = await onDirectoryChanged((event) => {
-  console.log(event.watchId, event.entries)
-})
+  console.log(event.watchId, event.entries);
+});
 
-await unlisten()
+await unlisten();
 ```
 
 If your app works against a specific ubiquity container for a whole workflow, use a bound container helper instead of passing the identifier on every call.
 
 ```ts
-import { forContainer } from 'tauri-plugin-icloud-container-api'
+import { forContainer } from "tauri-plugin-icloud-container-api";
 
-const container = forContainer('iCloud.com.example.app')
+const container = forContainer("iCloud.com.example.app");
 
-await container.writeFile('notes/example.txt', 'hello iCloud')
-const file = await container.readFile('notes/example.txt', { encoding: 'utf8' })
-const watchId = await container.watchDirectory('notes', true)
+await container.writeFile("notes/example.txt", "hello iCloud");
+const file = await container.readFile("notes/example.txt", {
+  encoding: "utf8",
+});
+const watchId = await container.watchDirectory("notes", true);
 ```
 
 Binary payloads use `Uint8Array` only. The guest API does not expose a base64 transport path.
@@ -120,51 +122,51 @@ The default permission set in [permissions/default.toml](permissions/default.tom
 
 ### Container identity
 
-| Command | Native API | What it does |
-| --- | --- | --- |
-| `get_container_status()` | `FileManager.ubiquityIdentityToken` + nil-check on `url(forUbiquityContainerIdentifier:)` | Returns `available`, `unavailable`, or `not_signed_in`. Must be called on a background thread; result is cached until `NSUbiquityIdentityDidChange` fires. |
-| `get_container_url(identifier?)` | `FileManager.url(forUbiquityContainerIdentifier:)` | Resolves and returns the absolute path to the iCloud container root. Passing `nil` uses the app's default container. Required before constructing any path-based argument to another command. |
+| Command                          | Native API                                                                                | What it does                                                                                                                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_container_status()`         | `FileManager.ubiquityIdentityToken` + nil-check on `url(forUbiquityContainerIdentifier:)` | Returns `available`, `unavailable`, or `not_signed_in`. Must be called on a background thread; result is cached until `NSUbiquityIdentityDidChange` fires.                                    |
+| `get_container_url(identifier?)` | `FileManager.url(forUbiquityContainerIdentifier:)`                                        | Resolves and returns the absolute path to the iCloud container root. Passing `nil` uses the app's default container. Required before constructing any path-based argument to another command. |
 
 ### Coordinated file I/O
 
 All reads and writes go through `NSFileCoordinator` to respect concurrent iCloud syncing.
 
-| Command | Native API | What it does |
-| --- | --- | --- |
-| `read_file(path, options?)` | `NSFileCoordinator` read to `Data` | Reads file content using one command. `options.encoding` defaults to `utf8`; set `bytes` for binary payloads. Returns `{ encoding: "utf8", content: string }` or `{ encoding: "bytes", content: Uint8Array }`. |
-| `write_file(path, content, options?)` | Coordinated write via `NSFileCoordinator` | Writes content. `options.encoding` defaults to `utf8`; set `bytes` for binary (`Uint8Array`). `options.fileProtection` sets iOS encryption level. Overwrites by default unless `options.overwrite = false`. The parent directory must already exist. |
-| `create_file(path, options?)` | Coordinated write via `NSFileCoordinator` | Creates a new file with optional initial content and encoding (`utf8` or `bytes`). `options.fileProtection` sets iOS encryption level. Fails if the file already exists, or if the parent directory does not already exist. |
-| `item_exists(path)` | `FileManager.fileExists(atPath:isDirectory:)` | Returns whether an item exists at the path and whether it is a file or directory. Does not trigger a download. |
-| `get_attributes(path)` | `FileManager.attributesOfItem` + `URL.resourceValues` for ubiquitous keys | Returns file size, modification date, creation date, type, and iCloud-specific resource values such as sync status. |
+| Command                               | Native API                                                                | What it does                                                                                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read_file(path, options?)`           | `NSFileCoordinator` read to `Data`                                        | Reads file content using one command. `options.encoding` defaults to `utf8`; set `bytes` for binary payloads. Returns `{ encoding: "utf8", content: string }` or `{ encoding: "bytes", content: Uint8Array }`.                                       |
+| `write_file(path, content, options?)` | Coordinated write via `NSFileCoordinator`                                 | Writes content. `options.encoding` defaults to `utf8`; set `bytes` for binary (`Uint8Array`). `options.fileProtection` sets iOS encryption level. Overwrites by default unless `options.overwrite = false`. The parent directory must already exist. |
+| `create_file(path, options?)`         | Coordinated write via `NSFileCoordinator`                                 | Creates a new file with optional initial content and encoding (`utf8` or `bytes`). `options.fileProtection` sets iOS encryption level. Fails if the file already exists, or if the parent directory does not already exist.                          |
+| `item_exists(path)`                   | `FileManager.fileExists(atPath:isDirectory:)`                             | Returns whether an item exists at the path and whether it is a file or directory. Does not trigger a download.                                                                                                                                       |
+| `get_attributes(path)`                | `FileManager.attributesOfItem` + `URL.resourceValues` for ubiquitous keys | Returns file size, modification date, creation date, type, and iCloud-specific resource values such as sync status.                                                                                                                                  |
 
 ### Directory operations
 
-| Command | Native API | What it does |
-| --- | --- | --- |
-| `create_directory(path, options?)` | `FileManager.createDirectory(at:withIntermediateDirectories:attributes:)` | Creates a directory with optional ancestor creation. `options.withIntermediateDirectories` defaults to `true`. `options.fileProtection` sets encryption. |
-| `list_directory(path, options?)` | `FileManager.contentsOfDirectory` / `FileManager.enumerator` + `URL.resourceValues` | Lists entries in one command. `options.recursive = false` performs shallow listing; `true` returns all descendants. `options.skipsHiddenFiles = false` includes dot-files. Entries include name, path, file metadata, and sync status when iCloud metadata is available for an item. |
-| `delete_item(path)` | `NSFileCoordinator` + `FileManager.removeItem` | Permanently deletes a file or directory and all its contents. Cannot be undone. |
-| `trash_item(path)` | `NSFileCoordinator` + `FileManager.trashItem(at:resultingItemURL:)` | Moves the item to native Trash using the platform API. Returns `{ path: string }` with the resulting absolute trash path. |
-| `move_item(source_path, destination_path)` | `NSFileCoordinator` writing both URLs + `FileManager.moveItem` | Moves a file or directory within the container. Can also serve as rename-in-place when source and destination share the same parent. The destination parent must already exist, and the destination path must not already exist. |
-| `copy_item(source_path, destination_path)` | `NSFileCoordinator` + `FileManager.copyItem` | Copies a file or directory to a new path within the container. The destination parent must already exist, and the destination path must not already exist. |
+| Command                                    | Native API                                                                          | What it does                                                                                                                                                                                                                                                                         |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `create_directory(path, options?)`         | `FileManager.createDirectory(at:withIntermediateDirectories:attributes:)`           | Creates a directory with optional ancestor creation. `options.withIntermediateDirectories` defaults to `true`. `options.fileProtection` sets encryption.                                                                                                                             |
+| `list_directory(path, options?)`           | `FileManager.contentsOfDirectory` / `FileManager.enumerator` + `URL.resourceValues` | Lists entries in one command. `options.recursive = false` performs shallow listing; `true` returns all descendants. `options.skipsHiddenFiles = false` includes dot-files. Entries include name, path, file metadata, and sync status when iCloud metadata is available for an item. |
+| `delete_item(path)`                        | `NSFileCoordinator` + `FileManager.removeItem`                                      | Permanently deletes a file or directory and all its contents. Cannot be undone.                                                                                                                                                                                                      |
+| `trash_item(path)`                         | `NSFileCoordinator` + `FileManager.trashItem(at:resultingItemURL:)`                 | Moves the item to native Trash using the platform API. Returns `{ path: string }` with the resulting absolute trash path.                                                                                                                                                            |
+| `move_item(source_path, destination_path)` | `NSFileCoordinator` writing both URLs + `FileManager.moveItem`                      | Moves a file or directory within the container. Can also serve as rename-in-place when source and destination share the same parent. The destination parent must already exist, and the destination path must not already exist.                                                     |
+| `copy_item(source_path, destination_path)` | `NSFileCoordinator` + `FileManager.copyItem`                                        | Copies a file or directory to a new path within the container. The destination parent must already exist, and the destination path must not already exist.                                                                                                                           |
 
 ### iCloud sync controls
 
-| Command | Native API | What it does |
-| --- | --- | --- |
+| Command                      | Native API                                                                                                                                                                                                           | What it does                                                                                                                                                                     |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `get_item_sync_status(path)` | `URL.resourceValues` for `ubiquitousItemDownloadingStatus`, `ubiquitousItemIsDownloading`, `ubiquitousItemIsUploading`, `ubiquitousItemIsUploaded`, `ubiquitousItemDownloadingError`, `ubiquitousItemUploadingError` | Returns the current iCloud transfer state for a single item: download phase, upload/download activity flags, and any transfer errors exposed through Foundation resource values. |
-| `start_download(path)` | `FileManager.startDownloadingUbiquitousItem(at:)` | Tells iCloud to fetch the local copy of a cloud-only file. Returns immediately; poll `get_item_sync_status` or use `watch_directory` to observe progress. |
-| `evict_item(path)` | `FileManager.evictUbiquitousItem(at:)` | Removes the local copy of a file that is safely stored in iCloud, freeing device storage. The file remains visible in `list_directory` with status `notDownloaded`. |
-| `is_ubiquitous(path)` | `FileManager.isUbiquitousItem(at:)` | Returns whether the item at the given path is managed by iCloud. Useful when handling paths that may come from outside the container. |
+| `start_download(path)`       | `FileManager.startDownloadingUbiquitousItem(at:)`                                                                                                                                                                    | Tells iCloud to fetch the local copy of a cloud-only file. Returns immediately; poll `get_item_sync_status` or use `watch_directory` to observe progress.                        |
+| `evict_item(path)`           | `FileManager.evictUbiquitousItem(at:)`                                                                                                                                                                               | Removes the local copy of a file that is safely stored in iCloud, freeing device storage. The file remains visible in `list_directory` with status `notDownloaded`.              |
+| `is_ubiquitous(path)`        | `FileManager.isUbiquitousItem(at:)`                                                                                                                                                                                  | Returns whether the item at the given path is managed by iCloud. Useful when handling paths that may come from outside the container.                                            |
 
 ### File watching
 
-| Command | Native API | What it does |
-| --- | --- | --- |
-| `watch_directory(path, recursive)` | `NSMetadataQuery` live subscription | Starts a live-updating observer on a directory. Emits the `icloud://directory-changed` event on every iCloud-sync or local change. Returns a `watchId` for later cancellation. |
-| `unwatch(watch_id)` | `NSMetadataQuery.stop()` + dealloc | Cancels and releases the watcher registered under `watchId`. |
-| `watch_file(path)` | `NSFilePresenter` | Registers a file-level presenter that emits the `icloud://file-changed` event when the file is modified or its sync state changes. Returns a `watchId`. |
-| `unwatch_file(watch_id)` | `NSFileCoordinator.removeFilePresenter` | Removes the `NSFilePresenter` registered under `watchId`. |
+| Command                            | Native API                              | What it does                                                                                                                                                                   |
+| ---------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `watch_directory(path, recursive)` | `NSMetadataQuery` live subscription     | Starts a live-updating observer on a directory. Emits the `icloud://directory-changed` event on every iCloud-sync or local change. Returns a `watchId` for later cancellation. |
+| `unwatch(watch_id)`                | `NSMetadataQuery.stop()` + dealloc      | Cancels and releases the watcher registered under `watchId`.                                                                                                                   |
+| `watch_file(path)`                 | `NSFilePresenter`                       | Registers a file-level presenter that emits the `icloud://file-changed` event when the file is modified or its sync state changes. Returns a `watchId`.                        |
+| `unwatch_file(watch_id)`           | `NSFileCoordinator.removeFilePresenter` | Removes the `NSFilePresenter` registered under `watchId`.                                                                                                                      |
 
 Watch events emitted by the guest API:
 
