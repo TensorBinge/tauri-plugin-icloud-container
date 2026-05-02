@@ -523,31 +523,40 @@ public class ICloudContainerPlugin {
                 return
             }
 
-            let coordinator = NSFileCoordinator()
-            var coordinationError: NSError?
-            var operationError: Error?
-            var payload: [[String: Any]]?
+            // iCloud metadata and NSFileCoordinator can block while files hydrate.
+            // Run directory enumeration off the main thread so the UI stays responsive.
+            DispatchQueue.global(qos: .userInitiated).async {
+                let coordinator = NSFileCoordinator()
+                var coordinationError: NSError?
+                var operationError: Error?
+                var payload: [[String: Any]]?
 
-            coordinator.coordinate(readingItemAt: directoryUrl, options: [], error: &coordinationError) { coordinatedUrl in
-                do {
-                    let rootUrl = coordinatedUrl.resolvingSymlinksInPath().standardizedFileURL
-                    let entries = try self.collectDirectoryEntries(
-                        rootUrl: rootUrl,
-                        recursive: recursive,
-                        skipsHiddenFiles: skipsHiddenFiles
-                    )
-                    payload = try entries.map { try self.folderEntryPayload(for: $0, rootUrl: rootUrl) }
-                } catch {
-                    operationError = error
+                coordinator.coordinate(readingItemAt: directoryUrl, options: [], error: &coordinationError) { coordinatedUrl in
+                    do {
+                        let rootUrl = coordinatedUrl.resolvingSymlinksInPath().standardizedFileURL
+                        let entries = try self.collectDirectoryEntries(
+                            rootUrl: rootUrl,
+                            recursive: recursive,
+                            skipsHiddenFiles: skipsHiddenFiles
+                        )
+                        payload = try entries.map { try self.folderEntryPayload(for: $0, rootUrl: rootUrl) }
+                    } catch {
+                        operationError = error
+                    }
+                }
+
+                let completionPayload = payload ?? []
+                let completionError = operationError ?? coordinationError
+
+                DispatchQueue.main.async {
+                    if let completionError {
+                        completion(nil, completionError)
+                        return
+                    }
+
+                    completion(completionPayload, nil)
                 }
             }
-
-            if let error = operationError ?? coordinationError {
-                completion(nil, error)
-                return
-            }
-
-            completion(payload ?? [], nil)
         }
     }
 
