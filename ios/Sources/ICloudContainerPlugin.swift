@@ -225,15 +225,20 @@ public class ICloudContainerPlugin {
         identifier: String?,
         completion: @escaping ([String: Any]) -> Void
     ) {
-        // FileManager ubiquity checks can block while iCloud state is resolving.
-        // Keep status probes off the main thread to avoid startup UI stalls.
-        DispatchQueue.global(qos: .userInitiated).async {
-            let available = self.resolver.isContainerAvailable(identifier: identifier)
-            let reason = self.resolver.getUnavailableReason(identifier: identifier)
-
+        // Route through resolveContainerUrl so the result is cached after the
+        // first call. This avoids calling url(forUbiquityContainerIdentifier:)
+        // twice (once for availability, once for reason) which is expensive on
+        // first install when iCloud provisions the container for the first time.
+        resolver.resolveContainerUrl(identifier: identifier) { url, _ in
+            let available = url != nil
             var result: [String: Any] = ["available": available]
-            if let reason = reason {
-                result["reason"] = reason
+            if !available {
+                // Only derive the reason when the container is not available.
+                if FileManager.default.ubiquityIdentityToken == nil {
+                    result["reason"] = "User not signed into iCloud"
+                } else {
+                    result["reason"] = "iCloud container not available or invalid identifier"
+                }
             }
             completion(result)
         }
