@@ -225,14 +225,18 @@ public class ICloudContainerPlugin {
         identifier: String?,
         completion: @escaping ([String: Any]) -> Void
     ) {
-        let available = resolver.isContainerAvailable(identifier: identifier)
-        let reason = resolver.getUnavailableReason(identifier: identifier)
-        
-        var result: [String: Any] = ["available": available]
-        if let reason = reason {
-            result["reason"] = reason
+        // FileManager ubiquity checks can block while iCloud state is resolving.
+        // Keep status probes off the main thread to avoid startup UI stalls.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let available = self.resolver.isContainerAvailable(identifier: identifier)
+            let reason = self.resolver.getUnavailableReason(identifier: identifier)
+
+            var result: [String: Any] = ["available": available]
+            if let reason = reason {
+                result["reason"] = reason
+            }
+            completion(result)
         }
-        completion(result)
     }
     
     /// Get the absolute URL path of the ubiquity container
@@ -545,17 +549,12 @@ public class ICloudContainerPlugin {
                     }
                 }
 
-                let completionPayload = payload ?? []
-                let completionError = operationError ?? coordinationError
-
-                DispatchQueue.main.async {
-                    if let completionError {
-                        completion(nil, completionError)
-                        return
-                    }
-
-                    completion(completionPayload, nil)
+                if let completionError = operationError ?? coordinationError {
+                    completion(nil, completionError)
+                    return
                 }
+
+                completion(payload ?? [], nil)
             }
         }
     }
