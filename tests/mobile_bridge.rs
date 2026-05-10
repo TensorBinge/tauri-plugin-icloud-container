@@ -77,3 +77,26 @@ fn swift_tauri_plugin_exports_init_symbol() {
 
     assert!(swift_plugin.contains("@_cdecl(\"init_plugin_icloud_container\")"));
 }
+
+#[test]
+fn plugin_uses_shared_logging_module_and_canonical_command_mobile_scopes() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let lib_rs = fs::read_to_string(root.join("src/lib.rs")).expect("read src/lib.rs");
+    let commands_rs =
+        fs::read_to_string(root.join("src/commands.rs")).expect("read src/commands.rs");
+    let mobile_rs = fs::read_to_string(root.join("src/mobile.rs")).expect("read src/mobile.rs");
+    let logging_rs = fs::read_to_string(root.join("src/logging.rs")).expect("read src/logging.rs");
+
+    assert!(lib_rs.contains("mod logging;"));
+    assert!(logging_rs.contains("pub fn format_log_line"));
+    assert!(logging_rs.contains("macro_rules! plugin_log_info"));
+    assert!(logging_rs.contains("macro_rules! plugin_log_warn"));
+
+    assert!(commands_rs.contains("icloud-container.command"));
+    assert!(commands_rs.contains("read-file-started"));
+    assert!(commands_rs.contains("watch-directory-started"));
+
+    assert!(mobile_rs.contains("icloud-container.mobile"));
+    assert!(mobile_rs.contains("read-file-started"));
+    assert!(mobile_rs.contains("watch-file-started"));
+}

@@ -3422,6 +3422,7 @@ dependencies = [
 name = "tauri-plugin-icloud-container"
 version = "0.1.0-beta.1"
 dependencies = [
+ "log",
  "objc",
  "serde",
  "serde_json",

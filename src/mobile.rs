@@ -4,10 +4,45 @@ use crate::models::{
     SyncStatus, TrashItemResult,
 };
 use serde::de::DeserializeOwned;
+use std::future::Future;
 use tauri::{
     plugin::{PluginApi, PluginHandle},
     AppHandle, Runtime,
 };
+
+const MOBILE_SCOPE: &str = "icloud-container.mobile";
+const WATCHER_SCOPE: &str = "icloud-container.watcher";
+
+fn field<T: serde::Serialize>(key: &'static str, value: &T) -> (&'static str, String) {
+    (key, crate::logging::serialize_log_value(value))
+}
+
+async fn run_mobile_call<T, F>(
+    scope: &str,
+    started_event: &str,
+    succeeded_event: &str,
+    failed_event: &str,
+    fields: &[(&'static str, String)],
+    future: F,
+) -> Result<T, PluginError>
+where
+    F: Future<Output = Result<T, PluginError>>,
+{
+    crate::logging::info(scope, started_event, fields);
+    let result = future.await;
+    match &result {
+        Ok(_) => crate::logging::info(scope, succeeded_event, fields),
+        Err(error) => {
+            let mut failed_fields = fields.to_vec();
+            failed_fields.push((
+                "error",
+                crate::logging::serialize_log_value(&error.to_string()),
+            ));
+            crate::logging::warn(scope, failed_event, &failed_fields);
+        }
+    }
+    result
+}
 
 #[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_icloud_container);
@@ -25,6 +60,11 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
     api: PluginApi<R, C>,
     default_identifier: Option<String>,
 ) -> Result<IcloudContainer<R>, PluginError> {
+    crate::plugin_log_info!(
+        "icloud-container.mobile",
+        "ios-plugin-registration-started",
+        "default_identifier" => default_identifier
+    );
     #[cfg(target_os = "ios")]
     let handle = api
         .register_ios_plugin(init_plugin_icloud_container)
@@ -40,10 +80,17 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
         });
     };
 
-    Ok(IcloudContainer {
+    let bridge = IcloudContainer {
         handle,
         default_identifier: normalize_identifier(default_identifier),
-    })
+    };
+
+    crate::plugin_log_info!(
+        "icloud-container.mobile",
+        "ios-plugin-registration-succeeded"
+    );
+
+    Ok(bridge)
 }
 
 impl<R: Runtime> IcloudContainer<R> {
@@ -51,26 +98,52 @@ impl<R: Runtime> IcloudContainer<R> {
         &self,
         identifier: Option<String>,
     ) -> Result<ContainerStatus, PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "getContainerStatus",
-                serde_json::json!({ "identifier": self.resolve_identifier(identifier) }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let fields = [field("identifier", &resolved_identifier)];
+
+        run_mobile_call(
+            MOBILE_SCOPE,
+            "get-container-status-started",
+            "get-container-status-succeeded",
+            "get-container-status-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "getContainerStatus",
+                        serde_json::json!({ "identifier": resolved_identifier }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn get_container_url(
         &self,
         identifier: Option<String>,
     ) -> Result<String, PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "getContainerUrl",
-                serde_json::json!({ "identifier": self.resolve_identifier(identifier) }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let fields = [field("identifier", &resolved_identifier)];
+
+        run_mobile_call(
+            MOBILE_SCOPE,
+            "get-container-url-started",
+            "get-container-url-succeeded",
+            "get-container-url-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "getContainerUrl",
+                        serde_json::json!({ "identifier": resolved_identifier }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn read_file(
@@ -79,17 +152,34 @@ impl<R: Runtime> IcloudContainer<R> {
         identifier: Option<String>,
         encoding: String,
     ) -> Result<FileContent, PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "readFile",
-                serde_json::json!({
-                    "identifier": self.resolve_identifier(identifier),
-                    "path": path,
-                    "encoding": encoding,
-                }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let fields = [
+            field("identifier", &resolved_identifier),
+            field("path", &path),
+            field("encoding", &encoding),
+        ];
+
+        run_mobile_call(
+            MOBILE_SCOPE,
+            "read-file-started",
+            "read-file-succeeded",
+            "read-file-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "readFile",
+                        serde_json::json!({
+                            "identifier": resolved_identifier,
+                            "path": path,
+                            "encoding": encoding,
+                        }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn write_file(
@@ -101,20 +191,42 @@ impl<R: Runtime> IcloudContainer<R> {
         overwrite: bool,
         file_protection: FileProtectionType,
     ) -> Result<(), PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "writeFile",
-                serde_json::json!({
-                    "identifier": self.resolve_identifier(identifier),
-                    "path": path,
-                    "content": file_content_to_bytes(content),
-                    "encoding": encoding,
-                    "overwrite": overwrite,
-                    "fileProtection": file_protection_to_wire(file_protection),
-                }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let encoded_content = file_content_to_bytes(content);
+        let wire_file_protection = file_protection_to_wire(file_protection);
+        let fields = [
+            field("identifier", &resolved_identifier),
+            field("path", &path),
+            field("content_length", &encoded_content.len()),
+            field("encoding", &encoding),
+            field("overwrite", &overwrite),
+            field("file_protection", &wire_file_protection),
+        ];
+
+        run_mobile_call(
+            MOBILE_SCOPE,
+            "write-file-started",
+            "write-file-succeeded",
+            "write-file-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "writeFile",
+                        serde_json::json!({
+                            "identifier": resolved_identifier,
+                            "path": path,
+                            "content": encoded_content,
+                            "encoding": encoding,
+                            "overwrite": overwrite,
+                            "fileProtection": wire_file_protection,
+                        }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn create_file(
@@ -125,19 +237,39 @@ impl<R: Runtime> IcloudContainer<R> {
         encoding: String,
         file_protection: FileProtectionType,
     ) -> Result<FolderEntry, PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "createFile",
-                serde_json::json!({
-                    "identifier": self.resolve_identifier(identifier),
-                    "path": path,
-                    "content": content,
-                    "encoding": encoding,
-                    "fileProtection": file_protection_to_wire(file_protection),
-                }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let wire_file_protection = file_protection_to_wire(file_protection);
+        let fields = [
+            field("identifier", &resolved_identifier),
+            field("path", &path),
+            field("content_length", &content.len()),
+            field("encoding", &encoding),
+            field("file_protection", &wire_file_protection),
+        ];
+
+        run_mobile_call(
+            MOBILE_SCOPE,
+            "create-file-started",
+            "create-file-succeeded",
+            "create-file-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "createFile",
+                        serde_json::json!({
+                            "identifier": resolved_identifier,
+                            "path": path,
+                            "content": content,
+                            "encoding": encoding,
+                            "fileProtection": wire_file_protection,
+                        }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn item_exists(
@@ -145,13 +277,29 @@ impl<R: Runtime> IcloudContainer<R> {
         path: String,
         identifier: Option<String>,
     ) -> Result<ItemExistence, PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "itemExists",
-                serde_json::json!({ "identifier": self.resolve_identifier(identifier), "path": path }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let fields = [
+            field("identifier", &resolved_identifier),
+            field("path", &path),
+        ];
+
+        run_mobile_call(
+            MOBILE_SCOPE,
+            "item-exists-started",
+            "item-exists-succeeded",
+            "item-exists-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "itemExists",
+                        serde_json::json!({ "identifier": resolved_identifier, "path": path }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn get_attributes(
@@ -159,13 +307,29 @@ impl<R: Runtime> IcloudContainer<R> {
         path: String,
         identifier: Option<String>,
     ) -> Result<ItemAttributes, PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "getAttributes",
-                serde_json::json!({ "identifier": self.resolve_identifier(identifier), "path": path }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let fields = [
+            field("identifier", &resolved_identifier),
+            field("path", &path),
+        ];
+
+        run_mobile_call(
+            MOBILE_SCOPE,
+            "get-attributes-started",
+            "get-attributes-succeeded",
+            "get-attributes-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "getAttributes",
+                        serde_json::json!({ "identifier": resolved_identifier, "path": path }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn create_directory(
@@ -175,18 +339,40 @@ impl<R: Runtime> IcloudContainer<R> {
         with_intermediate_directories: bool,
         file_protection: FileProtectionType,
     ) -> Result<(), PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "createDirectory",
-                serde_json::json!({
-                    "identifier": self.resolve_identifier(identifier),
-                    "path": path,
-                    "withIntermediateDirectories": with_intermediate_directories,
-                    "fileProtection": file_protection_to_wire(file_protection),
-                }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let wire_file_protection = file_protection_to_wire(file_protection);
+        let fields = [
+            field("identifier", &resolved_identifier),
+            field("path", &path),
+            field(
+                "with_intermediate_directories",
+                &with_intermediate_directories,
+            ),
+            field("file_protection", &wire_file_protection),
+        ];
+
+        run_mobile_call(
+            MOBILE_SCOPE,
+            "create-directory-started",
+            "create-directory-succeeded",
+            "create-directory-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "createDirectory",
+                        serde_json::json!({
+                            "identifier": resolved_identifier,
+                            "path": path,
+                            "withIntermediateDirectories": with_intermediate_directories,
+                            "fileProtection": wire_file_protection,
+                        }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn list_directory(
@@ -338,24 +524,53 @@ impl<R: Runtime> IcloudContainer<R> {
         recursive: bool,
         identifier: Option<String>,
     ) -> Result<String, PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "watchDirectory",
-                serde_json::json!({
-                    "identifier": self.resolve_identifier(identifier),
-                    "path": path,
-                    "recursive": recursive,
-                }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let fields = [
+            field("identifier", &resolved_identifier),
+            field("path", &path),
+            field("recursive", &recursive),
+        ];
+
+        run_mobile_call(
+            WATCHER_SCOPE,
+            "watch-directory-started",
+            "watch-directory-succeeded",
+            "watch-directory-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "watchDirectory",
+                        serde_json::json!({
+                            "identifier": resolved_identifier,
+                            "path": path,
+                            "recursive": recursive,
+                        }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn unwatch(&self, watch_id: String) -> Result<(), PluginError> {
-        self.handle
-            .run_mobile_plugin_async("unwatch", serde_json::json!({ "watchId": watch_id }))
-            .await
-            .map_err(normalize_mobile_error)
+        let fields = [field("watch_id", &watch_id)];
+
+        run_mobile_call(
+            WATCHER_SCOPE,
+            "unwatch-started",
+            "unwatch-succeeded",
+            "unwatch-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async("unwatch", serde_json::json!({ "watchId": watch_id }))
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn watch_file(
@@ -363,20 +578,51 @@ impl<R: Runtime> IcloudContainer<R> {
         path: String,
         identifier: Option<String>,
     ) -> Result<String, PluginError> {
-        self.handle
-            .run_mobile_plugin_async(
-                "watchFile",
-                serde_json::json!({ "identifier": self.resolve_identifier(identifier), "path": path }),
-            )
-            .await
-            .map_err(normalize_mobile_error)
+        let resolved_identifier = self.resolve_identifier(identifier);
+        let fields = [
+            field("identifier", &resolved_identifier),
+            field("path", &path),
+        ];
+
+        run_mobile_call(
+            WATCHER_SCOPE,
+            "watch-file-started",
+            "watch-file-succeeded",
+            "watch-file-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "watchFile",
+                        serde_json::json!({ "identifier": resolved_identifier, "path": path }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     pub async fn unwatch_file(&self, watch_id: String) -> Result<(), PluginError> {
-        self.handle
-            .run_mobile_plugin_async("unwatchFile", serde_json::json!({ "watchId": watch_id }))
-            .await
-            .map_err(normalize_mobile_error)
+        let fields = [field("watch_id", &watch_id)];
+
+        run_mobile_call(
+            WATCHER_SCOPE,
+            "unwatch-file-started",
+            "unwatch-file-succeeded",
+            "unwatch-file-failed",
+            &fields,
+            async {
+                self.handle
+                    .run_mobile_plugin_async(
+                        "unwatchFile",
+                        serde_json::json!({ "watchId": watch_id }),
+                    )
+                    .await
+                    .map_err(normalize_mobile_error)
+            },
+        )
+        .await
     }
 
     fn resolve_identifier(&self, override_identifier: Option<String>) -> Option<String> {

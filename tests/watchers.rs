@@ -111,3 +111,21 @@ fn swift_file_watchers_make_presenter_registration_idempotent() {
     assert!(service.contains("guard !isPresenting else"));
     assert!(service.contains("guard isPresenting else"));
 }
+
+#[test]
+fn watcher_boundaries_use_canonical_logging_scope_and_events() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let commands_rs =
+        fs::read_to_string(root.join("src/commands.rs")).expect("read src/commands.rs");
+    let mobile_rs = fs::read_to_string(root.join("src/mobile.rs")).expect("read src/mobile.rs");
+
+    assert!(commands_rs.contains("icloud-container.command"));
+    assert!(commands_rs.contains("watch-directory-started"));
+    assert!(commands_rs.contains("watch-file-started"));
+    assert!(commands_rs.contains("unwatch-started"));
+
+    assert!(mobile_rs.contains("icloud-container.watcher"));
+    assert!(mobile_rs.contains("watch-directory-started"));
+    assert!(mobile_rs.contains("watch-directory-succeeded"));
+    assert!(mobile_rs.contains("unwatch-failed"));
+}

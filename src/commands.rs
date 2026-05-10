@@ -7,10 +7,46 @@ use crate::{
     },
 };
 use std::path::{Component, Path};
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Runtime};
 
 #[cfg(mobile)]
 use crate::IcloudContainer;
+#[cfg(mobile)]
+use std::future::Future;
+
+#[cfg(mobile)]
+const COMMAND_SCOPE: &str = "icloud-container.command";
+
+fn field<T: serde::Serialize>(key: &'static str, value: &T) -> (&'static str, String) {
+    (key, crate::logging::serialize_log_value(value))
+}
+
+#[cfg(mobile)]
+async fn run_command_with_logging<T, F>(
+    started_event: &str,
+    succeeded_event: &str,
+    failed_event: &str,
+    fields: &[(&'static str, String)],
+    future: F,
+) -> Result<T, PluginError>
+where
+    F: Future<Output = Result<T, PluginError>>,
+{
+    crate::logging::info(COMMAND_SCOPE, started_event, fields);
+    let result = future.await;
+    match &result {
+        Ok(_) => crate::logging::info(COMMAND_SCOPE, succeeded_event, fields),
+        Err(error) => {
+            let mut failed_fields = fields.to_vec();
+            failed_fields.push((
+                "error",
+                crate::logging::serialize_log_value(&error.to_string()),
+            ));
+            crate::logging::warn(COMMAND_SCOPE, failed_event, &failed_fields);
+        }
+    }
+    result
+}
 
 fn validate_identifier(identifier: String) -> Result<String, PluginError> {
     let trimmed = identifier.trim();
@@ -160,11 +196,21 @@ pub async fn get_container_status<R: Runtime>(
     identifier: Option<String>,
 ) -> Result<ContainerStatus, PluginError> {
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.get_container_status(id).await
+        run_command_with_logging(
+            "get-container-status-started",
+            "get-container-status-succeeded",
+            "get-container-status-failed",
+            &fields,
+            bridge.get_container_status(id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -180,11 +226,21 @@ pub async fn get_container_url<R: Runtime>(
     identifier: Option<String>,
 ) -> Result<String, PluginError> {
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.get_container_url(id).await
+        run_command_with_logging(
+            "get-container-url-started",
+            "get-container-url-succeeded",
+            "get-container-url-failed",
+            &fields,
+            bridge.get_container_url(id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -208,11 +264,25 @@ pub async fn read_file<R: Runtime>(
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
     let encoding = resolve_read_options(options)?;
+    let fields = [
+        field("path", &valid_path),
+        field("identifier", &id),
+        field("encoding", &encoding),
+    ];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.read_file(valid_path, id, encoding).await
+        run_command_with_logging(
+            "read-file-started",
+            "read-file-succeeded",
+            "read-file-failed",
+            &fields,
+            bridge.read_file(valid_path, id, encoding),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -233,20 +303,34 @@ pub async fn write_file<R: Runtime>(
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
     let (encoding, overwrite, file_protection) = resolve_write_options(options)?;
+    let fields = [
+        field("path", &valid_path),
+        field("identifier", &id),
+        field("encoding", &encoding),
+        field("overwrite", &overwrite),
+        field("file_protection", &file_protection),
+    ];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge
-            .write_file(
+        run_command_with_logging(
+            "write-file-started",
+            "write-file-succeeded",
+            "write-file-failed",
+            &fields,
+            bridge.write_file(
                 valid_path,
                 content,
                 id,
                 encoding,
                 overwrite,
                 file_protection,
-            )
-            .await
+            ),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -274,13 +358,27 @@ pub async fn create_file<R: Runtime>(
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
     let (content, encoding, file_protection) = resolve_create_file_options(options)?;
+    let fields = [
+        field("path", &valid_path),
+        field("identifier", &id),
+        field("content_length", &content.len()),
+        field("encoding", &encoding),
+        field("file_protection", &file_protection),
+    ];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge
-            .create_file(valid_path, content, id, encoding, file_protection)
-            .await
+        run_command_with_logging(
+            "create-file-started",
+            "create-file-succeeded",
+            "create-file-failed",
+            &fields,
+            bridge.create_file(valid_path, content, id, encoding, file_protection),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -298,11 +396,21 @@ pub async fn item_exists<R: Runtime>(
 ) -> Result<ItemExistence, PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("path", &valid_path), field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.item_exists(valid_path, id).await
+        run_command_with_logging(
+            "item-exists-started",
+            "item-exists-succeeded",
+            "item-exists-failed",
+            &fields,
+            bridge.item_exists(valid_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -320,11 +428,21 @@ pub async fn get_attributes<R: Runtime>(
 ) -> Result<ItemAttributes, PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("path", &valid_path), field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.get_attributes(valid_path, id).await
+        run_command_with_logging(
+            "get-attributes-started",
+            "get-attributes-succeeded",
+            "get-attributes-failed",
+            &fields,
+            bridge.get_attributes(valid_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -381,18 +499,34 @@ pub async fn create_directory<R: Runtime>(
     let id = resolve_optional_identifier(identifier)?;
     let (with_intermediate_directories, file_protection) =
         resolve_create_directory_options(options);
+    let fields = [
+        field("path", &valid_path),
+        field("identifier", &id),
+        field(
+            "with_intermediate_directories",
+            &with_intermediate_directories,
+        ),
+        field("file_protection", &file_protection),
+    ];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge
-            .create_directory(
+        run_command_with_logging(
+            "create-directory-started",
+            "create-directory-succeeded",
+            "create-directory-failed",
+            &fields,
+            bridge.create_directory(
                 valid_path,
                 id,
                 with_intermediate_directories,
                 file_protection,
-            )
-            .await
+            ),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -418,13 +552,26 @@ pub async fn list_directory<R: Runtime>(
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
     let (recursive, skips_hidden_files) = resolve_list_directory_options(options);
+    let fields = [
+        field("path", &valid_path),
+        field("identifier", &id),
+        field("recursive", &recursive),
+        field("skips_hidden_files", &skips_hidden_files),
+    ];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge
-            .list_directory(valid_path, id, recursive, skips_hidden_files)
-            .await
+        run_command_with_logging(
+            "list-directory-started",
+            "list-directory-succeeded",
+            "list-directory-failed",
+            &fields,
+            bridge.list_directory(valid_path, id, recursive, skips_hidden_files),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -442,11 +589,21 @@ pub async fn delete_item<R: Runtime>(
 ) -> Result<(), PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("path", &valid_path), field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.delete_item(valid_path, id).await
+        run_command_with_logging(
+            "delete-item-started",
+            "delete-item-succeeded",
+            "delete-item-failed",
+            &fields,
+            bridge.delete_item(valid_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -464,11 +621,21 @@ pub async fn trash_item<R: Runtime>(
 ) -> Result<TrashItemResult, PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("path", &valid_path), field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.trash_item(valid_path, id).await
+        run_command_with_logging(
+            "trash-item-started",
+            "trash-item-succeeded",
+            "trash-item-failed",
+            &fields,
+            bridge.trash_item(valid_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -488,13 +655,25 @@ pub async fn move_item<R: Runtime>(
     let valid_source_path = validate_relative_path(source_path)?;
     let valid_destination_path = validate_relative_path(destination_path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [
+        field("source_path", &valid_source_path),
+        field("destination_path", &valid_destination_path),
+        field("identifier", &id),
+    ];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge
-            .move_item(valid_source_path, valid_destination_path, id)
-            .await
+        run_command_with_logging(
+            "move-item-started",
+            "move-item-succeeded",
+            "move-item-failed",
+            &fields,
+            bridge.move_item(valid_source_path, valid_destination_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -514,13 +693,25 @@ pub async fn copy_item<R: Runtime>(
     let valid_source_path = validate_relative_path(source_path)?;
     let valid_destination_path = validate_relative_path(destination_path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [
+        field("source_path", &valid_source_path),
+        field("destination_path", &valid_destination_path),
+        field("identifier", &id),
+    ];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge
-            .copy_item(valid_source_path, valid_destination_path, id)
-            .await
+        run_command_with_logging(
+            "copy-item-started",
+            "copy-item-succeeded",
+            "copy-item-failed",
+            &fields,
+            bridge.copy_item(valid_source_path, valid_destination_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -542,11 +733,21 @@ pub async fn get_item_sync_status<R: Runtime>(
 ) -> Result<SyncStatus, PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("path", &valid_path), field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.get_item_sync_status(valid_path, id).await
+        run_command_with_logging(
+            "get-item-sync-status-started",
+            "get-item-sync-status-succeeded",
+            "get-item-sync-status-failed",
+            &fields,
+            bridge.get_item_sync_status(valid_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -564,11 +765,21 @@ pub async fn start_download<R: Runtime>(
 ) -> Result<(), PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("path", &valid_path), field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.start_download(valid_path, id).await
+        run_command_with_logging(
+            "start-download-started",
+            "start-download-succeeded",
+            "start-download-failed",
+            &fields,
+            bridge.start_download(valid_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -586,11 +797,21 @@ pub async fn evict_item<R: Runtime>(
 ) -> Result<(), PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("path", &valid_path), field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.evict_item(valid_path, id).await
+        run_command_with_logging(
+            "evict-item-started",
+            "evict-item-succeeded",
+            "evict-item-failed",
+            &fields,
+            bridge.evict_item(valid_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -608,11 +829,21 @@ pub async fn is_ubiquitous<R: Runtime>(
 ) -> Result<bool, PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("path", &valid_path), field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.is_ubiquitous(valid_path, id).await
+        run_command_with_logging(
+            "is-ubiquitous-started",
+            "is-ubiquitous-succeeded",
+            "is-ubiquitous-failed",
+            &fields,
+            bridge.is_ubiquitous(valid_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -635,11 +866,25 @@ pub async fn watch_directory<R: Runtime>(
 ) -> Result<String, PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [
+        field("path", &valid_path),
+        field("identifier", &id),
+        field("recursive", &recursive),
+    ];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.watch_directory(valid_path, recursive, id).await
+        run_command_with_logging(
+            "watch-directory-started",
+            "watch-directory-succeeded",
+            "watch-directory-failed",
+            &fields,
+            bridge.watch_directory(valid_path, recursive, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -652,11 +897,21 @@ pub async fn watch_directory<R: Runtime>(
 #[tauri::command]
 pub async fn unwatch<R: Runtime>(app: AppHandle<R>, watch_id: String) -> Result<(), PluginError> {
     let valid_watch_id = validate_watch_id(watch_id)?;
+    let fields = [field("watch_id", &valid_watch_id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.unwatch(valid_watch_id).await
+        run_command_with_logging(
+            "unwatch-started",
+            "unwatch-succeeded",
+            "unwatch-failed",
+            &fields,
+            bridge.unwatch(valid_watch_id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -674,11 +929,21 @@ pub async fn watch_file<R: Runtime>(
 ) -> Result<String, PluginError> {
     let valid_path = validate_relative_path(path)?;
     let id = resolve_optional_identifier(identifier)?;
+    let fields = [field("path", &valid_path), field("identifier", &id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.watch_file(valid_path, id).await
+        run_command_with_logging(
+            "watch-file-started",
+            "watch-file-succeeded",
+            "watch-file-failed",
+            &fields,
+            bridge.watch_file(valid_path, id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]
@@ -694,11 +959,21 @@ pub async fn unwatch_file<R: Runtime>(
     watch_id: String,
 ) -> Result<(), PluginError> {
     let valid_watch_id = validate_watch_id(watch_id)?;
+    let fields = [field("watch_id", &valid_watch_id)];
+    #[cfg(not(mobile))]
+    let _ = &fields;
 
     #[cfg(mobile)]
     {
         let bridge = app.state::<IcloudContainer<R>>();
-        bridge.unwatch_file(valid_watch_id).await
+        run_command_with_logging(
+            "unwatch-file-started",
+            "unwatch-file-succeeded",
+            "unwatch-file-failed",
+            &fields,
+            bridge.unwatch_file(valid_watch_id),
+        )
+        .await
     }
 
     #[cfg(not(mobile))]

@@ -5,6 +5,7 @@ mod mobile;
 
 pub mod commands;
 mod error;
+mod logging;
 mod models;
 
 #[cfg(desktop)]
@@ -63,6 +64,11 @@ pub fn init_with_config<R: Runtime>(config: IcloudContainerConfig) -> TauriPlugi
         ])
         .setup(move |app, api| {
             let configured_identifier = config.identifier.clone();
+            crate::plugin_log_info!(
+                "icloud-container.plugin",
+                "setup-started",
+                "configured_identifier" => configured_identifier
+            );
 
             #[cfg(mobile)]
             let icloud = mobile::init(app, api, configured_identifier)?;
@@ -70,6 +76,7 @@ pub fn init_with_config<R: Runtime>(config: IcloudContainerConfig) -> TauriPlugi
             let icloud = desktop::init(app, api, configured_identifier)?;
 
             app.manage(icloud);
+            crate::plugin_log_info!("icloud-container.plugin", "setup-succeeded");
             Ok(())
         })
         .build()
