@@ -13,6 +13,8 @@ use tauri::{AppHandle, Runtime};
 use crate::IcloudContainer;
 #[cfg(mobile)]
 use std::future::Future;
+#[cfg(mobile)]
+use tauri::Manager;
 
 #[cfg(mobile)]
 const COMMAND_SCOPE: &str = "icloud-container.command";
