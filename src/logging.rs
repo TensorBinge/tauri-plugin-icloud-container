@@ -1,4 +1,5 @@
 pub fn format_log_line(level: &str, scope: &str, event: &str, fields: &[(&str, String)]) -> String {
+    let _ = level;
     let suffix = fields
         .iter()
         .map(|(key, value)| format!("{key}={value}"))
@@ -6,9 +7,9 @@ pub fn format_log_line(level: &str, scope: &str, event: &str, fields: &[(&str, S
         .join(" ");
 
     if suffix.is_empty() {
-        format!("[{level}] [{scope}] {event}")
+        format!("[{scope}] {event}")
     } else {
-        format!("[{level}] [{scope}] {event} {suffix}")
+        format!("[{scope}] {event} {suffix}")
     }
 }
 
@@ -42,4 +43,17 @@ macro_rules! plugin_log_warn {
         let fields: Vec<(&str, String)> = vec![$(($key, $crate::logging::serialize_log_value(&$value))),*];
         $crate::logging::warn($scope, $event, &fields);
     }};
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formats_log_lines_without_repeating_the_level_in_message_body() {
+        assert_eq!(
+            format_log_line("info", "icloud-container.command", "write-file-started", &[]),
+            "[icloud-container.command] write-file-started"
+        );
+    }
 }

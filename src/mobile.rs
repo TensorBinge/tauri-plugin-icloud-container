@@ -31,7 +31,9 @@ where
     crate::logging::info(scope, started_event, fields);
     let result = future.await;
     match &result {
-        Ok(_) => crate::logging::info(scope, succeeded_event, fields),
+        Ok(_) => {
+            let _ = (scope, succeeded_event, fields);
+        }
         Err(error) => {
             let mut failed_fields = fields.to_vec();
             failed_fields.push((
@@ -689,6 +691,50 @@ fn normalize_mobile_error<E: ToString>(error: E) -> PluginError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    struct TestLogger {
+        entries: &'static Mutex<Vec<String>>,
+    }
+
+    impl log::Log for TestLogger {
+        fn enabled(&self, _metadata: &log::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn log(&self, record: &log::Record<'_>) {
+            self.entries
+                .lock()
+                .expect("test logger mutex poisoned")
+                .push(record.args().to_string());
+        }
+
+        fn flush(&self) {}
+    }
+
+    fn test_log_entries() -> &'static Mutex<Vec<String>> {
+        static ENTRIES: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+        ENTRIES.get_or_init(|| Mutex::new(Vec::new()))
+    }
+
+    fn install_test_logger() {
+        static LOGGER_INSTALLED: OnceLock<()> = OnceLock::new();
+        LOGGER_INSTALLED.get_or_init(|| {
+            let logger = Box::leak(Box::new(TestLogger {
+                entries: test_log_entries(),
+            }));
+
+            log::set_logger(logger).expect("test logger should install once");
+            log::set_max_level(log::LevelFilter::Trace);
+        });
+    }
+
+    fn take_logged_messages() -> Vec<String> {
+        let mut entries = test_log_entries()
+            .lock()
+            .expect("test logger mutex poisoned");
+        std::mem::take(&mut *entries)
+    }
 
     #[test]
     fn normalize_mobile_error_maps_known_codes() {
@@ -745,5 +791,26 @@ mod tests {
         );
         assert_eq!(normalize_identifier(Some("   ".to_string())), None);
         assert_eq!(normalize_identifier(None), None);
+    }
+
+    #[test]
+    fn run_mobile_call_logs_start_but_not_success_on_ok_result() {
+        install_test_logger();
+        take_logged_messages();
+
+        let result = tauri::async_runtime::block_on(run_mobile_call(
+            MOBILE_SCOPE,
+            "write-file-started",
+            "write-file-succeeded",
+            "write-file-failed",
+            &[],
+            async { Ok::<(), PluginError>(()) },
+        ));
+
+        assert!(result.is_ok());
+
+        let entries = take_logged_messages();
+        assert!(entries.iter().any(|entry| entry.contains("write-file-started")));
+        assert!(!entries.iter().any(|entry| entry.contains("write-file-succeeded")));
     }
 }
