@@ -199,6 +199,14 @@ public class ICloudContainerPlugin {
     private let watcherQueue = DispatchQueue(label: "com.icloud.container.watchers", attributes: .concurrent)
     private var directoryWatchers: [String: DirectoryWatcher] = [:]
     private var fileWatchers: [String: FileWatcher] = [:]
+
+    // In-flight coalescing for listDirectory: concurrent calls for the same
+    // iCloud directory path share one native enumeration instead of piling up
+    // overlapping NSFileCoordinator reads that can wedge the app.
+    private typealias ListDirectoryCompletion = ([[String: Any]]?, Error?) -> Void
+    private let listCoalescingQueue = DispatchQueue(label: "com.icloud.container.listCoalescing", attributes: .concurrent)
+    private var pendingListRequests: [String: [ListDirectoryCompletion]] = [:]
+
     private var didEnterBackgroundObserver: NSObjectProtocol?
     private var willEnterForegroundObserver: NSObjectProtocol?
     
@@ -532,6 +540,26 @@ public class ICloudContainerPlugin {
                 return
             }
 
+            // Coalesce concurrent requests for the same directory.  Rapid folder
+            // navigation can trigger overlapping listings that each do an
+            // NSFileCoordinator read + per-entry iCloud metadata fetch, which
+            // compounds into a frozen UI.
+            let key = directoryUrl.standardizedFileURL.path
+
+            let shouldProceed: Bool = self.listCoalescingQueue.sync(flags: .barrier) {
+                if self.pendingListRequests[key] != nil {
+                    self.pendingListRequests[key]!.append(completion)
+                    return false
+                }
+
+                self.pendingListRequests[key] = [completion]
+                return true
+            }
+
+            guard shouldProceed else {
+                return
+            }
+
             // iCloud metadata and NSFileCoordinator can block while files hydrate.
             // Run directory enumeration off the main thread so the UI stays responsive.
             DispatchQueue.global(qos: .userInitiated).async {
@@ -554,12 +582,13 @@ public class ICloudContainerPlugin {
                     }
                 }
 
-                if let completionError = operationError ?? coordinationError {
-                    completion(nil, completionError)
-                    return
+                // Deliver the result to every coalesced caller.
+                self.listCoalescingQueue.async(flags: .barrier) {
+                    let completions = self.pendingListRequests.removeValue(forKey: key) ?? []
+                    for coalesced in completions {
+                        coalesced(payload, operationError ?? coordinationError)
+                    }
                 }
-
-                completion(payload ?? [], nil)
             }
         }
     }
