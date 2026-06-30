@@ -52,7 +52,12 @@ mod tests {
     #[test]
     fn formats_log_lines_without_repeating_the_level_in_message_body() {
         assert_eq!(
-            format_log_line("info", "icloud-container.command", "write-file-started", &[]),
+            format_log_line(
+                "info",
+                "icloud-container.command",
+                "write-file-started",
+                &[]
+            ),
             "[icloud-container.command] write-file-started"
         );
     }

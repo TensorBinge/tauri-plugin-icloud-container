@@ -810,7 +810,11 @@ mod tests {
         assert!(result.is_ok());
 
         let entries = take_logged_messages();
-        assert!(entries.iter().any(|entry| entry.contains("write-file-started")));
-        assert!(!entries.iter().any(|entry| entry.contains("write-file-succeeded")));
+        assert!(entries
+            .iter()
+            .any(|entry| entry.contains("write-file-started")));
+        assert!(!entries
+            .iter()
+            .any(|entry| entry.contains("write-file-succeeded")));
     }
 }
