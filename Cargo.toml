@@ -5,6 +5,8 @@ edition = "2021"
 description = "iCloud container access plugin for Tauri 2"
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/TensorBinge/tauri-plugin-icloud-container"
+homepage = "https://github.com/TensorBinge/tauri-plugin-icloud-container"
 links = "tauri-plugin-icloud-container"
 
 [lib]

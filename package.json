@@ -3,6 +3,14 @@
   "version": "0.1.0-beta.1",
   "description": "Typed guest JS API for tauri-plugin-icloud-container",
   "license": "MIT",
+  "homepage": "https://github.com/TensorBinge/tauri-plugin-icloud-container",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TensorBinge/tauri-plugin-icloud-container.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TensorBinge/tauri-plugin-icloud-container/issues"
+  },
   "type": "module",
   "files": [
     "guest-js",
@@ -14,7 +22,10 @@
     ".": "./guest-js/index.ts"
   },
   "scripts": {
-    "test:guest-api": "node ./tests/guest_api_contract.mjs"
+    "test": "node ./tests/guest_api_contract.mjs",
+    "test:guest-api": "node ./tests/guest_api_contract.mjs",
+    "pack:artifact": "mkdir -p artifacts && npm pack --pack-destination artifacts",
+    "prepublishOnly": "npm test"
   },
   "peerDependencies": {
     "@tauri-apps/api": "^2.0.0"
