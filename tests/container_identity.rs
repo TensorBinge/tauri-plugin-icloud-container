@@ -60,7 +60,7 @@ fn test_container_status_serialization_unavailable() {
 fn test_container_url_returns_string() {
     // URL should be a simple string response from the command
     let url = "/private/var/mobile/Library/Mobile Documents/iCloud~com.example.app";
-    assert!(!url.is_empty());
+    // url is a non-empty literal — empty check would be a compile-time no-op
     assert!(url.starts_with("/"));
 }
 
@@ -229,9 +229,9 @@ fn test_identifier_override_is_optional() {
     let identifier: Option<&str> = None;
     assert!(identifier.is_none());
 
-    let explicit = Some("iCloud.com.example.app");
-    assert!(explicit.is_some());
-    assert!(explicit.unwrap().starts_with("iCloud."));
+    let explicit = "iCloud.com.example.app";
+    assert!(explicit.starts_with("iCloud."));
+    // `Option` wrapping is tested above in the `None` case
 }
 
 // ============================================================================
