@@ -25,7 +25,13 @@ fn test_validate_relative_path_rejects_empty_path() {
 
 #[test]
 fn test_validate_relative_path_rejects_absolute_path() {
-    let err = validate_relative_path("/etc/passwd".to_string()).expect_err("must reject absolute");
+    // Use a path that is absolute on all platforms
+    let absolute = if cfg!(windows) {
+        r"C:\Windows\System32\drivers\etc\hosts"
+    } else {
+        "/etc/passwd"
+    };
+    let err = validate_relative_path(absolute.to_string()).expect_err("must reject absolute");
     match err {
         PluginError::PathOutsideContainer { detail } => {
             assert!(detail.unwrap_or_default().contains("relative"));
